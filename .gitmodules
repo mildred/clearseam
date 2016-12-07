@@ -1,0 +1,6 @@
+[submodule "citojs"]
+	path = citojs
+	url = git@github.com:joelrich/citojs.git
+[submodule "pure"]
+	path = pure
+	url = git@github.con:pure/pure.git

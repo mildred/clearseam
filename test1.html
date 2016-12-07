@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <script src="citojs/dist/cito.js"></script>
+    <script>
+window.addEventListener('load', function(){
+
+  function button(click) {
+    return {
+      tag: 'button',
+      attrs: {title: 'double the list'},
+      events: {click: click},
+      children: 'double'
+    }
+  }
+
+  function clock(){
+    function render(oldDOM){
+      console.log(oldDOM)
+      return {
+        tag: 'strong',
+        children: (new Date()).toString(),
+        events: {
+          $destroyed: clear
+        }
+      }
+    }
+
+    var i = setInterval(tick, 1000)
+    function tick(){
+      cito.vdom.update(dom, render)
+    }
+
+    function clear(){
+      console.log("clear")
+      clearInterval(i)
+    }
+
+    var dom = render()
+    return dom
+  }
+
+  function root() {
+    var items = [
+      {tag: 'li', children: 'text'}
+    ];
+
+    var clk = clock()
+    var btn = button(doubleList)
+
+    function doubleList() {
+      items = items.concat(items);
+      cito.vdom.update(dom, render);
+    }
+
+    function render(){
+      return {
+        tag: 'div', children: [
+          {tag: 'p', children: clk},
+          btn,
+          {tag: 'ul', children: items},
+          "FIXME: clicking on the button does not clear interval"
+        ]
+      }
+    }
+
+    var dom = render()
+    return dom
+  }
+
+  function Node(){
+    var data = ["elem1"]
+
+    function onClick(){
+      // modify data
+      cito.vdom.update(this.dom, this.render)
+    }
+
+    this.render = $pure.build(document.querySelector("template"), {
+      template: 'mapping'
+    }).render(data)
+  }
+
+  console.log(cito.vdom.append(document.body, root()))
+})
+    </script>
+  </head>
+  <body>
+  </body>
+</html>
