@@ -2,17 +2,37 @@
 <html>
   <head>
     <meta charset="utf-8"/>
-    <script src="citojs/dist/cito.js"></script>
+    <script src="citojs/src/vdom.js"></script>
+    <script src="templateless.js"></script>
+    <template name="button">
+      <button title="double the list">double</button>
+    </template>
+    <template name="hello">
+      <p>Hello <span></span></p>
+    </template>
     <script>
 window.addEventListener('load', function(){
 
   function button(click) {
+    var btn_tmpl = template("button", {
+      "button": "text",
+      "button@title": "title",
+      "button&click": "click"
+    })
+    var dom = btn_tmpl({
+      text: "Double",
+      title: "Double the list",
+      click: click
+    })
+    return dom
+    /*
     return {
       tag: 'button',
       attrs: {title: 'double the list'},
       events: {click: click},
       children: 'double'
     }
+    */
   }
 
   function clock(){
@@ -27,7 +47,7 @@ window.addEventListener('load', function(){
       }
     }
 
-    var i = setInterval(tick, 1000)
+    //var i = setInterval(tick, 1000)
     function tick(){
       cito.vdom.update(dom, render)
     }
@@ -41,6 +61,18 @@ window.addEventListener('load', function(){
     return dom
   }
 
+  function template(name, directives){
+    var tmpltag = cito.vdom.fromDOM(document.querySelector("template[name='"+name+"']").content)
+    return $templateless.citojsdom(tmpltag, directives)
+  }
+
+  function hello(name){
+    var tmpl = template("hello", {
+      'span': 'name'
+    })
+    return tmpl({name: name})
+  }
+
   function root() {
     var items = [
       {tag: 'li', children: 'text'}
@@ -48,6 +80,7 @@ window.addEventListener('load', function(){
 
     var clk = clock()
     var btn = button(doubleList)
+    console.log({btn: JSON.stringify(btn)})
 
     function doubleList() {
       items = items.concat(items);
@@ -59,8 +92,8 @@ window.addEventListener('load', function(){
         tag: 'div', children: [
           {tag: 'p', children: clk},
           btn,
+          hello(hello('world')),
           {tag: 'ul', children: items},
-          "FIXME: clicking on the button does not clear interval"
         ]
       }
     }
