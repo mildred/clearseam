@@ -1,4 +1,12 @@
-function $templateless(domlib){
+function $templateless(domlib, debug){
+  var console = window.console
+  if(!debug) {
+    console = {
+      log: function(){},
+      group: function(){},
+      groupEnd: function(){},
+    }
+  }
   return compile
   function compile(domtmpl, directives0, matches_optional){
     var dirstack = normdirectives(directives0)
@@ -11,7 +19,9 @@ function $templateless(domlib){
     var cdirs2 = []
     var cl = children.length
     var merged_directives = {}
-    //console.log({compile: domtmpl, directives: dirstack, matches: matches})
+
+    console.log("Compile %s %o (%d matches): %o", domlib.tagName(domtmpl), domtmpl, matches.length,
+        dirstack.length == 1 ? dirstack[0] : dirstack)
 
     while(dirstack.length > 0){
       var directives = dirstack[0]
@@ -28,6 +38,7 @@ function $templateless(domlib){
       merged_directives = merge([merged_directives, directives])
     }
 
+    if(cl > 0) console.group("Match "+cl+" children:")
     for(var tsel in merged_directives){
       var dsel = merged_directives[tsel]
       var match
@@ -42,31 +53,53 @@ function $templateless(domlib){
         }
       }
     }
+    if(cl > 0) console.groupEnd()
 
+    if(cl > 0) console.group("Compile "+cl+" children:")
     for(var i = 0; i < cl; i++){
       var subdirectives = cdirs2[i] && cdirs2[i].length ? cdirs2[i] : cdirs[i]
       childrentmpl[i] = compile(children[i], subdirectives, cmatches[i])
     }
+    if(cl > 0) console.groupEnd()
 
     return function(data){
-      var dom = domlib.cloneparent(domtmpl)
+      console.log("Render %s %o using %o", domlib.tagName(domtmpl), domtmpl, data)
+      var dom = domlib.clone(domtmpl, false)
       var ml = matches.length
+      if(cl) console.group("render " + cl + " children")
       for(var i = 0; i < cl; i++){
         domlib.addChild(dom, childrentmpl[i](data))
       }
+      if(cl) console.groupEnd()
+      if(ml>1) console.group("render " + ml + " matches")
+      var loop = [{dom: dom, data: data}]
       for(var i = 0; i < ml; i++){
-        var frag = domlib.fragments(dom)
-        var fl = frag.length
-        if(fl <= 1){
-          dom = matches[i](dom, data)
-        } else {
-          dom = domlib.emptyFragment()
-          for(var j = 0; j < fl; j++){
-            domlib.addChild(dom, matches[i](frag[j], data))
-          }
+        var match = matches[i]
+        var newloop = []
+        var ll = loop.length
+        if(ll>1) console.group("render " + i + ".* " + ll + " loop items")
+        for(var j = 0; j < ll; j++) {
+          var item = loop[j]
+          console.log("render %d.%d, %o with %o", i, j, item.dom, item.data)
+          var newitems = match(item.dom, item.data)
+          if (newitems) console.log("render %d.%d to %o", i, j, newitems)
+          else newitems = [item]
+          newloop = newloop.concat(newitems)
         }
+        if(ll>1) console.groupEnd()
+        loop = newloop
       }
-      return dom
+      if(ml>1) console.groupEnd()
+      if(loop.length == 1) {
+        return loop[0].dom
+      } else {
+        var fragment = domlib.emptyFragment()
+        var ll = loop.length
+        for(var i = 0; i < ll; i++){
+          domlib.addChild(fragment, loop[i].dom)
+        }
+        return fragment
+      }
     }
   }
 
@@ -92,10 +125,9 @@ function $templateless(domlib){
   //   loop, transform dom into fragment
   //   item is the name of the current item
   //   collection is the jsonpath for data
-  //   FIXME: compile the rest of the directives
   //
   // dsel: {DIRECTIVES}
-  //   FIXME: compile the rest of the directives
+  //   TODO
   function tmatch(domtmpl, tsel, dsel){
     var m = tsel.match(/^(\+)?([^\@\&\+]+)?(\@([^\+]+)|\&([^\+]+))?(\+)?$/)
     if(!m) return null;
@@ -115,12 +147,59 @@ function $templateless(domlib){
       return null;
     }
 
+    var loopinst
+    var loopdir
+    if(typeof(dsel) === 'object') {
+      if(event !== undefined && event !== "") {
+        error("Cannot loop over an event")
+      }
+      if(attr !== undefined && attr !== "") {
+        error("Cannot loop over an attribute")
+      }
+      for(dir in dsel) {
+        var m = dir.match( /^(\w+)\s*<-\s*(\S+)?$/ )
+        if(m) {
+          if(loopinst) error("Loop directive must contain only one loop instruction")
+          loopinst = m
+          loopdir = dsel[dir]
+        }
+      }
+    }
+
+    if(loopinst) {
+      console.log("Match %s to loop %s: %o", tsel, loopinst[0], loopdir)
+      var loopvar = m[1]
+      var loopdsel = m[2]
+      var loopdataf = dataselectfn(loopdsel, false)
+      return {
+        d: loopdir,
+        f: function(dom, data){
+          var collection = loopdataf.call(data, {context: data})
+          var cl = collection.length
+          var loop = []
+          console.log("render list of %d: %o", cl, collection)
+          for(var i = 0; i < cl; i++) {
+            var element = domlib.clone(dom)
+            var elemdata = Object.create(data, {})
+            elemdata[loopvar] = collection[i]
+            loop.push({dom: element, data: elemdata})
+          }
+          return loop
+        }
+      }
+    }
+
     var dataf = dataselectfn(dsel, event !== undefined && event !== "")
 
     if(suffix === "" || suffix === undefined) {
       //console.log({tmatch: domtmpl, tsel: tsel, dsel: dsel, result: true})
+      console.log("Match %s to tag: %o", tsel, dsel)
+      if(prepend && append) {
+        error("Cannot append and insert before")
+      }
       return {f: function(dom, data){
         var newcontent = dataf.call(data, {context: data})
+        console.log("render tag %o: %o", dom, newcontent)
         if(typeof(newcontent) == 'string') {
           newcontent = domlib.text(newcontent)
         }
@@ -132,22 +211,31 @@ function $templateless(domlib){
           domlib.clearChildren(dom)
           domlib.addChild(dom, newcontent)
         }
-        return dom
+        return null
       }}
     } else {
       //console.log({tmatch: domtmpl, tsel: tsel, dsel: dsel, result: true})
+      if(event) console.log("Match %s to event %s: %o", tsel, event, dsel)
+      if(attr) console.log("Match %s to attr %s: %o", tsel, attr, dsel)
+      if(event && (prepend || append)) {
+        error("Cannot insert before or append to and event")
+      }
       return {f: function(dom, data){
         var userdata = dataf.call(data, {context: data})
         if(event) {
+          console.log("render event %s: %o", event, userdata)
           domlib.addEventHandler(dom, event, userdata)
-        } else if(prepend) {
-          domlib.setAttr(dom, attr, userdata + domlib.attr(dom, attr))
-        } else if(append) {
-          domlib.setAttr(dom, attr, domlib.attr(dom, attr) + userdata)
         } else {
-          domlib.setAttr(dom, attr, userdata)
+          console.log("render attribute %s: %o", attr, userdata)
+          if(prepend) {
+            domlib.setAttr(dom, attr, userdata + domlib.attr(dom, attr))
+          } else if(append) {
+            domlib.setAttr(dom, attr, domlib.attr(dom, attr) + userdata)
+          } else {
+            domlib.setAttr(dom, attr, userdata)
+          }
         }
-        return dom
+        return null
       }}
     }
 
@@ -262,6 +350,14 @@ function $templateless(domlib){
     }
     return res
   }
+
+  // error utility
+  function error(e){
+    if(typeof console !== 'undefined'){
+      console.log(e);
+    }
+    throw 'pure error: ' + e;
+  }
 }
 
 $templateless.citojsdom = (function(){
@@ -282,12 +378,22 @@ $templateless.citojsdom = (function(){
     return [domnode]
   }
 
-  citojsdom.cloneparent = function(domnode){
+  citojsdom.clone = function dom_clone(domnode, recursive){
     if(typeof(domnode) != 'object') return domnode
     var res = {}
     for(var k in domnode) {
       if(k == 'children' && domnode.tag !== "#" && domnode.tag !== "!") {
-        res[k] = []
+        if (recursive) {
+          var newc = []
+          var children = res[k]
+          var cl = children.length
+          for(var i = 0; i < cl; i++) {
+            newc.push(dom_clone(children[i], recursive))
+          }
+          res[k] = newc
+        } else {
+          res[k] = []
+        }
       } else {
         res[k] = shallowclone(domnode[k])
       }
@@ -304,10 +410,12 @@ $templateless.citojsdom = (function(){
   }
 
   citojsdom.insertChild = function(domnode, child){
+    domnode.children = domnode.children || []
     domnode.children = [child].concat(domnode.children)
   }
 
   citojsdom.addChild = function(domnode, child){
+    domnode.children = domnode.children || []
     domnode.children.push(child)
   }
 
