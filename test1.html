@@ -51,12 +51,16 @@ window.addEventListener('load', function(){
   function list(data){
     this.lines = data
     console.log("list")
-    var t = template2(this, "list", {
+
+    this.render = template2(this, "list", {
       "li": {
         "line <- lines": {'.': "line"}
       }
     })
-    return t(this)
+
+    this.setState = function(data){
+      this.lines = data
+    }
   }
 
   function clock(){
@@ -110,11 +114,11 @@ window.addEventListener('load', function(){
   function template2(component, name, directives) {
     var t = template(name, directives)
     return function(data){
-      var dom = t(data)
-      if(component.vdom) {
-        cito.vdom.update(component.vdom, dom)
+      var dom = t(data === undefined ? component : data)
+      if(component._vdom) {
+        cito.vdom.update(component._vdom, dom)
       }
-      component.vdom = dom
+      component._vdom = dom
       return dom
     }
   }
@@ -144,7 +148,8 @@ window.addEventListener('load', function(){
     function doubleList(){
       this.array = this.array.concat(this.array);
       // FIXME: try to find a way to avoid instanciating new component
-      this.list = new list(this.array)
+      //this.list = new list(this.array)
+      this.list.setState(this.array)
       t(this)
     }
   }
