@@ -1,9 +1,0 @@
-[submodule "citojs"]
-	path = citojs
-	url = git@github.com:joelrich/citojs.git
-[submodule "pure"]
-	path = pure
-	url = git@github.com:pure/pure.git
-[submodule "weld"]
-	path = weld
-	url = https://github.com/tmpvar/weld.git
