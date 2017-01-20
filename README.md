@@ -37,6 +37,4 @@ This takes a template name, found on the page as a `<emplate>` tag, and directiv
 Clearseam directives
 ====================
 
-Directives were meant to be compatible with pure.js (or is that weld). We could not reuse code because we support VDOM instead of browser DOM.
-
-TODO
+Directives were meant to be compatible with pure.js. We could not reuse code because we support VDOM instead of browser DOM. Until we document things, please look at the pure.js documentation
