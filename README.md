@@ -41,17 +41,14 @@ Clearseam directives
 
 Directives were meant to be compatible with [pure.js](https://beebole.com/pure/). Directives is a JSON object containing on keys a selector that matches a node from the template VDOM, and the JSON values contains a selector that matches a data object taken fron the data object on template instanciation.
 
-Loops are formed with directive like :
+Looping is performed specifying a JSON object in place of the JSON
+string representing the value to insert in the template on
+instanciation. This JSON object contains the following keys that can
+customie the loop:
 
-    {
-      loop_markup_directive: {
-        var_name+"<-"+data_directive_for_list: data_directive_for_loop
-      }
-    }
+- *iteration_variable* `<-` *data_collection_selector*
 
-It is not yet possible to filter or sort loops.
-
-Markup directives:
+VDOM Selectors:
 
 - `+` *directive* : the text selected should be inserted before the existing text and not replace it
 - *directive* `+` : the text selected should be appended after the existing text and not replace it
@@ -75,8 +72,15 @@ Markup directives:
 - *directive* `[` *attr* `]`: matches an element which has an attribute *attr* that contains *value*
 - *tagname* : matches a tag with the given name
 
-Data directives :
+Data Selectors:
 
-- *javascript function*: the function is executed and should return the result text (same as pure.js)
-- `#{...}`: interpolation within a string
+- a function: the function is called to get the data. this is the
+  current data object.
+- *prop* : matches the value for the property *prop*
+- *prop* `.` *prop* : matches the value following a path of properties
+  (not limited to a depth of two)
 
+In case the selector was not directly a function, and the data
+selector yields a function which is called with `this` as the
+current data object. This does not applies when assigning an event
+handler.

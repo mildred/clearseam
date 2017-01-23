@@ -1,3 +1,4 @@
+// Get the doc: sed -rne 's|\s*//\+\+ ?(.*)|\1|p'
 function $templateless(domlib, debug){
   var dconsole = window.console
   if(!debug) {
@@ -138,6 +139,12 @@ function $templateless(domlib, debug){
     var loopdir
     var loopvar
     var loopdsel
+    //++ Looping is performed specifying a JSON object in place of the JSON
+    //++ string representing the value to insert in the template on
+    //++ instanciation. This JSON object contains the following keys that can
+    //++ customie the loop:
+    //++
+    //++ - *iteration_variable* `<-` *data_collection_selector*
     if(typeof(dsel) === 'object') {
       if(s.event) {
         error("Cannot loop over an event")
@@ -247,6 +254,11 @@ function $templateless(domlib, debug){
     return sel
   }
 
+  //++
+  //++ VDOM Selectors:
+  //++
+  //++ - `+` *directive* : the text selected should be inserted before the existing text and not replace it
+  //++ - *directive* `+` : the text selected should be appended after the existing text and not replace it
   function matchappend(sel, tsel){
     sel.insert = false
     sel.append = false
@@ -257,6 +269,9 @@ function $templateless(domlib, debug){
     return m[2]
   }
 
+  //++ - *directive* `@` *attribute* : matches the attribute with the specified name (insert text as attribute value)
+  //++ - *directive* `&` *event* : matches the event with the specified name (insert event handler)
+  //++ - *directive* `$` *property* : matches the property with the specified name
   function matchattr(sel, tsel){
     sel.attr = null
     sel.event = null
@@ -286,6 +301,7 @@ function $templateless(domlib, debug){
   }
 
   function matchcriterias(sel, tsel) {
+    //++ - *directive* `.`, `*` : matches any element
     if(tsel == "*" || tsel == "."){
       sel.criterias.push(function(){
         return true
@@ -293,6 +309,7 @@ function $templateless(domlib, debug){
       return ""
     }
 
+    //++ - *directive* `:not(` *criteria* `)`: inverse the match of the criterias following on this list
     var m = tsel.match(/^(.*)\:not\(([^\(\)]+(\([^\(\)]*\))?)\)$/)
     if(m) {
       var subsel = {
@@ -327,48 +344,61 @@ function $templateless(domlib, debug){
       return false
     }
 
+    //++ - *directive* `.` *classname*: matches an element with *classname’appearing in the `class` attribute list
     var m = tsel.match(/^(.*)\.([^\:\#\.\[\]]+)$/)
     if(m) {
       sel.criterias.push(crit_matchattr.bind(this, 'class', '~=', m[2]))
       return m[1]
     }
 
+    //++ - *directive* `#` *idname*: matches an element with `id` attribute as *idname*
     var m = tsel.match(/^(.*)\#([^\:\#\.\[\]]+)$/)
     if(m) {
       sel.criterias.push(crit_matchattr.bind(this, 'id', '=', m[2]))
       return m[1]
     }
 
+    //++ - *directive* `[` *index* `]`: matches an element that is the child *index* (which can be negative to cound from the end)
     var m = tsel.match(/^(.*)\[(-?[0-9]+)\]$/)
     if(m) {
       sel.criterias.push(crit_index.bind(this, parseInt(m[2])))
       return m[1]
     }
 
+    //++ - *directive* `:first-child`: same as *directive* `[1]`
     var m = tsel.match(/^(.*)\:first-child$/)
     if(m) {
       sel.criterias.push(crit_index.bind(this, 1))
       return m[1]
     }
 
+    //++ - *directive* `:last-child`: same as *directive* `[-1]`
     var m = tsel.match(/^(.*)\:last-child$/)
     if(m) {
       sel.criterias.push(crit_index.bind(this, -1))
       return m[1]
     }
 
+    //++ - *directive* `:nth-child(` *index* `)`: same as *directive* `[`*index*`]`
+    //++ - *directive* `:nth-last-child(` *index* `)`: same as *directive* `[-`*index*`]`
     var m = tsel.match(/^(.*)\:nth(-last)?-child\((-?[0-9]+)\)$/)
     if(m) {
       sel.criterias.push(crit_index.bind(this, m[2] ? -parseInt(m[3]) : parseInt(m[3])))
       return m[1]
     }
 
+    //++ - *directive* `[` *attr* `=` *value* `]`: matches an element which has an attribute *attr* with value *value*
+    //++ - *directive* `[` *attr* `~=` *value* `]`: matches an element which has an attribute *attr* as a space separated list containing *value*
+    //++ - *directive* `[` *attr* `|=` *value* `]`: matches an element which has an attribute *attr* as a `-` separated list containing *value*
+    //++ - *directive* `[` *attr* `^=` *value* `]`: matches an element which has an attribute *attr* that starts with *value*
+    //++ - *directive* `[` *attr* `*=` *value* `]`: matches an element which has an attribute *attr* that contains *value*
     var m = tsel.match(/^(.*)\[([^\[\]]+)([\~\|\^\$\*]?=)([^\[\]]+)\]$/)
     if(m) {
       sel.criterias.push(crit_matchattr.bind(this, m[2], m[3], m[4]))
       return m[1]
     }
 
+    //++ - *directive* `[` *attr* `]`: matches an element which has an attribute *attr* that contains *value*
     var m = tsel.match(/^(.*)\[([^\[\]]+)\]$/)
     if(m) {
       var attr = m[2]
@@ -378,6 +408,7 @@ function $templateless(domlib, debug){
       return m[1]
     }
 
+    //++ - *tagname* : matches a tag with the given name
     sel.criterias.push(function(dom){
       dconsole.log(domlib)
       var tagName = domlib.tagName(dom)
@@ -390,6 +421,11 @@ function $templateless(domlib, debug){
   // parse a data selector and return a function that
   // can traverse the data accordingly, given a context.
   function dataselectfn (sel, eventhandler){
+    //++
+    //++ Data Selectors:
+    //++
+    //++ - a function: the function is called to get the data. this is the
+    //++   current data object.
     if( typeof(sel) === 'function' ){
       //handle false values in function directive
       return function ( ctxt ){
@@ -423,6 +459,9 @@ function $templateless(domlib, debug){
       parts[i] = s;
       return concatenator(parts, pfns);
     }
+    //++ - *prop* : matches the value for the property *prop*
+    //++ - *prop* `.` *prop* : matches the value following a path of properties
+    //++   (not limited to a depth of two)
     m = sel.split('.');
     return function(ctxt){
       var data = ctxt.context || ctxt,
@@ -441,6 +480,11 @@ function $templateless(domlib, debug){
       }
       n = m.length;
 
+      //++
+      //++ In case the selector was not directly a function, and the data
+      //++ selector yields a function which is called with `this` as the
+      //++ current data object. This does not applies when assigning an event
+      //++ handler.
       while( i < n ){
         if(!data){break;}
         dm = data[ m[i] ];
