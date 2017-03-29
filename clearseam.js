@@ -20,9 +20,13 @@ function $templateless(domlib, debug){
     var cdirs2 = []
     var cl = children.length
     var merged_directives = {}
+    var tagName = domlib.tagName(domtmpl)
 
-    dconsole.log("Compile %s %o (%d matches): %o", domlib.tagName(domtmpl), domtmpl, matches.length,
-        dirstack.length == 1 ? dirstack[0] : dirstack)
+    dconsole.log("Compile %s %o (%d matches): %o (dirstack %d)", tagName, domtmpl, matches.length,
+        dirstack.length == 1 ? dirstack[0] : dirstack, dirstack.length)
+
+    // Here we match the directives against the parent dom node
+    // We generate a list of matches that will be used for rendering
 
     while(dirstack.length > 0){
       var directives = dirstack[0]
@@ -32,14 +36,19 @@ function $templateless(domlib, debug){
         var match
         if(match = tmatch(parentdom, domtmpl, tsel, dsel)) {
           if(match.d) dirstack.push(match.d)
-          if(match.f) matches.push(match.f)
+          if(match.f) matches.push({tsel: tsel, dsel: dsel, f: match.f})
           delete directives[tsel]
         }
       }
       merged_directives = merge([merged_directives, directives])
     }
 
-    if(cl > 0) dconsole.group("Match "+cl+" children:")
+    // Here we match the directives (after merge) against the children of the
+    // dom node, and we prepare a list of directives to send to compilation to
+    // these children. This is a pre-compilation step for directives that match
+    // here and will not match in children compile function.
+
+    if(cl > 0) dconsole.group("Match "+cl+" children of " + tagName + ":")
     for(var tsel in merged_directives){
       var dsel = merged_directives[tsel]
       var match
@@ -49,14 +58,17 @@ function $templateless(domlib, debug){
         cdirs2[i] = cdirs2[i] || []
         if(match = tmatch(domtmpl, children[i], tsel, dsel)) {
           if(match.d) cdirs2[i].push(match.d)
-          if(match.f) cmatches[i].push(match.f)
+          if(match.f) cmatches[i].push({tsel: tsel, dsel: dsel, f: match.f})
           delete cdirs[i][tsel]
         }
       }
     }
     if(cl > 0) dconsole.groupEnd()
 
-    if(cl > 0) dconsole.group("Compile "+cl+" children:")
+    // Here we compile each child of the template dom node with the prepared
+    // subdirectives.
+
+    if(cl > 0) dconsole.group("Compile "+cl+" children of " + tagName + ":")
     for(var i = 0; i < cl; i++){
       var subdirectives = cdirs2[i] && cdirs2[i].length ? cdirs2[i] : cdirs[i]
       childrentmpl[i] = compile(children[i], subdirectives, cmatches[i], domtmpl)
@@ -64,34 +76,60 @@ function $templateless(domlib, debug){
     if(cl > 0) dconsole.groupEnd()
 
     return function(data){
-      dconsole.log("Render %s %o using %o", domlib.tagName(domtmpl), domtmpl, data)
+      dconsole.log("Render %s %o using %o", tagName, domtmpl, data)
       var dom = domlib.clone(domtmpl, false)
-      var ml = matches.length
-      if(cl) dconsole.group("render " + cl + " children")
-      for(var i = 0; i < cl; i++){
-        domlib.addChild(dom, childrentmpl[i](data))
+
+      function renderChildren(dom, data){
+        if(cl) dconsole.group("render " + tagName + " " + cl + " children")
+        for(var i = 0; i < cl; i++){
+          // addChild must handle fragment here (FIXME: don't require addChild
+          // to handle fragments)
+          domlib.addChild(dom, childrentmpl[i](data))
+        }
+        if(cl) dconsole.groupEnd()
       }
-      if(cl) dconsole.groupEnd()
-      if(ml>1) dconsole.group("render " + ml + " matches")
+
+      // Render children using the parent data (general case when not looping)
+
+      renderChildren(dom, data)
+
+      // Render matches of current node
+
+      var ml = matches.length
+      if(ml>1) dconsole.group("render " + tagName + " " + ml + " matches")
       var loop = [{dom: dom, data: data}]
       for(var i = 0; i < ml; i++){
         var match = matches[i]
+        var matchf = match.f
+        dconsole.log("render %s match %d %o", tagName, i, match)
         var newloop = []
         var ll = loop.length
-        if(ll>1) dconsole.group("render " + i + ".* " + ll + " loop items")
+        if(ll>1) dconsole.group("render "+tagName+" "+i+".* " + ll + " loop items")
         for(var j = 0; j < ll; j++) {
           var item = loop[j]
-          dconsole.log("render %d.%d, %o with %o", i, j, item.dom, item.data)
-          var newitems = match(item.dom, item.data)
-          if (newitems) dconsole.log("render %d.%d to %o", i, j, newitems)
-          else newitems = [item]
+          dconsole.log("render %s %d.%d, %o with %o", tagName, i, j, item.dom, item.data)
+
+          // Execute rendering function (the function returned by tmatch when
+          // compiling). Pass it the renderChildren function in case the
+          // rendering layer wants to loop. Looping is implemented by having
+          // this function return a dom fragment.
+          var newitems = matchf(item.dom, item.data, renderChildren)
+          if (newitems) {
+            dconsole.log("render %s %d.%d to %o", tagName, i, j, newitems)
+          } else {
+            newitems = [item]
+          }
           newloop = newloop.concat(newitems)
         }
         if(ll>1) dconsole.groupEnd()
         loop = newloop
       }
       if(ml>1) dconsole.groupEnd()
+
+      // Rendering done, handle fragment caused by loops
+
       if(loop.length == 1) {
+        console.log("Render %s to node = %o", tagName, loop[0].dom)
         return loop[0].dom
       } else {
         var fragment = domlib.emptyFragment()
@@ -99,6 +137,7 @@ function $templateless(domlib, debug){
         for(var i = 0; i < ll; i++){
           domlib.addChild(fragment, loop[i].dom)
         }
+        console.log("Render %s to fragment = %o", tagName, fragment)
         return fragment
       }
     }
@@ -109,6 +148,11 @@ function $templateless(domlib, debug){
   // the DOM according to data and dsel if tsel matches domtmpl
   // loops can be implemented in making the return function transform a dom node
   // into a dom fragment
+  //
+  // The function f can also take a third parameter which is a
+  // function(dom, data) that populate the children of dom with rendering. It
+  // uses data for that. This is used in case of looping when the function f
+  // wants to duplicate a node.
   //
   // tsel: [+] [tagName] [@attribute] [+]
   //   + in front: insert before
@@ -142,7 +186,7 @@ function $templateless(domlib, debug){
     //++ Looping is performed specifying a JSON object in place of the JSON
     //++ string representing the value to insert in the template on
     //++ instanciation. This JSON object contains the following keys that can
-    //++ customie the loop:
+    //++ customise the loop:
     //++
     //++ - *iteration_variable* `<-` *data_collection_selector*
     if(typeof(dsel) === 'object') {
@@ -171,16 +215,22 @@ function $templateless(domlib, debug){
       dconsole.log("Match %s to loop %s: %o", tsel, loopinst[0], loopdir)
       var loopdataf = dataselectfn(loopdsel, false)
       return {
+        loop: true,
         d: loopdir,
-        f: function(dom, data){
+        f: function(dom, data, renderChildren){
           var collection = loopdataf.call(data, {context: data})
           var cl = collection.length
           var loop = []
           dconsole.log("render list of %d: %o", cl, collection)
           for(var i = 0; i < cl; i++) {
-            var element = domlib.clone(dom)
+            // Clone the dom node without its children (these needs to be
+            // rendered with correct data instead)
+            var element = domlib.clone(dom, false)
+            //dconsole.log("render list element %d to: %o", i, element)
             var elemdata = Object.create(data, {})
             elemdata[loopvar] = collection[i]
+            // render the children with correct data
+            renderChildren(element, elemdata)
             loop.push({dom: element, data: elemdata})
           }
           return loop
@@ -593,7 +643,7 @@ $templateless.citojsdom = (function(){
       if(k == 'children' && domnode.tag !== "#" && domnode.tag !== "!") {
         if (recursive) {
           var newc = []
-          var children = res[k]
+          var children = domnode[k]
           var cl = children.length
           for(var i = 0; i < cl; i++) {
             newc.push(dom_clone(children[i], recursive))
@@ -619,12 +669,24 @@ $templateless.citojsdom = (function(){
 
   citojsdom.insertChild = function(domnode, child){
     domnode.children = domnode.children || []
-    domnode.children = [child].concat(domnode.children)
+    if (child.tag) {
+      domnode.children = [child].concat(domnode.children)
+    } else {
+      // FIXME: don't require to handle fragments in domlib
+      // handle that in the algorithm instead
+      domnode.children = child.children.concat(domnode.children)
+    }
   }
 
   citojsdom.addChild = function(domnode, child){
     domnode.children = domnode.children || []
-    domnode.children.push(child)
+    if (child.tag) {
+      domnode.children = domnode.children.concat([child])
+    } else {
+      // FIXME: don't require to handle fragments in domlib
+      // handle that in the algorithm instead
+      domnode.children = domnode.children.concat(child.children)
+    }
   }
 
   citojsdom.clearChildren = function(domnode){
@@ -636,7 +698,9 @@ $templateless.citojsdom = (function(){
   }
 
   citojsdom.attr = function(dom, name) {
-    return dom.attrs[name]
+    if(dom.attrs) {
+      return dom.attrs[name]
+    }
   }
 
   citojsdom.setAttr = function(dom, name, value) {
