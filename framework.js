@@ -1,6 +1,6 @@
 function template(name, directives){
   var tmpltag = cito.vdom.fromDOM(document.querySelector("template[name='"+name+"']").content)
-  return $templateless.citojsdom(tmpltag, directives)
+  return $clearseam.citojsdom(tmpltag, directives)
 }
 
 function render_vdom(component, tmpl) {
