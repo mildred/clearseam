@@ -82,8 +82,6 @@ function $templateless(domlib, debug){
       function renderChildren(dom, data){
         if(cl) dconsole.group("render " + tagName + " " + cl + " children")
         for(var i = 0; i < cl; i++){
-          // addChild must handle fragment here (FIXME: don't require addChild
-          // to handle fragments)
           domlib.addChild(dom, childrentmpl[i](data))
         }
         if(cl) dconsole.groupEnd()
@@ -669,24 +667,12 @@ $templateless.citojsdom = (function(){
 
   citojsdom.insertChild = function(domnode, child){
     domnode.children = domnode.children || []
-    if (child.tag) {
-      domnode.children = [child].concat(domnode.children)
-    } else {
-      // FIXME: don't require to handle fragments in domlib
-      // handle that in the algorithm instead
-      domnode.children = child.children.concat(domnode.children)
-    }
+    domnode.children = [child].concat(domnode.children)
   }
 
   citojsdom.addChild = function(domnode, child){
     domnode.children = domnode.children || []
-    if (child.tag) {
-      domnode.children = domnode.children.concat([child])
-    } else {
-      // FIXME: don't require to handle fragments in domlib
-      // handle that in the algorithm instead
-      domnode.children = domnode.children.concat(child.children)
-    }
+    domnode.children = domnode.children.concat([child])
   }
 
   citojsdom.clearChildren = function(domnode){
