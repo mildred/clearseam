@@ -1,5 +1,5 @@
 // Get the doc: sed -rne 's|\s*//\+\+ ?(.*)|\1|p'
-function $templateless(domlib, debug){
+function $clearseam(domlib, debug){
   var dconsole = window.console
   if(!debug) {
     dconsole = {
@@ -596,7 +596,7 @@ function $templateless(domlib, debug){
   }
 }
 
-$templateless.citojsdom = (function(){
+$clearseam.citojsdom = (function(){
   var citojsdom = {}
 
   citojsdom.children = function(domnode){
@@ -719,5 +719,5 @@ $templateless.citojsdom = (function(){
     return res
   }
 
-  return $templateless(citojsdom)
+  return $clearseam(citojsdom)
 })()
