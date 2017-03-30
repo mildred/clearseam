@@ -129,7 +129,7 @@ function $templateless(domlib, debug){
       // Rendering done, handle fragment caused by loops
 
       if(loop.length == 1) {
-        console.log("Render %s to node = %o", tagName, loop[0].dom)
+        dconsole.log("Render %s to node = %o", tagName, loop[0].dom)
         return loop[0].dom
       } else {
         var fragment = domlib.emptyFragment()
@@ -137,7 +137,7 @@ function $templateless(domlib, debug){
         for(var i = 0; i < ll; i++){
           domlib.addChild(fragment, loop[i].dom)
         }
-        console.log("Render %s to fragment = %o", tagName, fragment)
+        dconsole.log("Render %s to fragment = %o", tagName, fragment)
         return fragment
       }
     }
