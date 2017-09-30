@@ -21,3 +21,24 @@ function template_render(component, name, directives) {
   var t = template(name, directives)
   return render_vdom(component, t)
 }
+
+function Component() {
+  //this.render({children: []})
+}
+
+Component.prototype.dom = function(){
+  return this._vdom
+}
+
+Component.prototype.render = function(dom){
+  if(this._vdom) {
+    if(!this._vdom.dom){
+      //console.error("Cannot update dom: not inserted in hierarchy (update %o to %o)", this, dom)
+    } else {
+      cito.vdom.update(this._vdom, dom)
+    }
+  }
+  this._vdom = dom
+  return this._vdom
+}
+
