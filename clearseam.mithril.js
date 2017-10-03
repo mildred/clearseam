@@ -118,7 +118,7 @@ $clearseam.mithrildom = (function(m){
   }
 
   mithrildom.addEventHandler = function(dom, name, handler) {
-    dom.setAttr(dom, "on"+name, handler)
+    mithrildom.setAttr(dom, "on"+name, handler)
   }
 
   mithrildom.fromDOM = function fromDOM(dom) {
